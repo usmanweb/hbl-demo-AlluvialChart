@@ -21,15 +21,25 @@ def get_dummy_data():
 # Step 2: Allow Users to Edit Dummy Data
 st.subheader("Editable Data")
 data = get_dummy_data()
-edited_data = st.experimental_data_editor(data, use_container_width=True, num_rows="dynamic")
+
+# Check Streamlit version and use appropriate function
+try:
+    # For Streamlit v1.22.0 or later
+    edited_data = st.data_editor(data, use_container_width=True, num_rows="dynamic")
+except AttributeError:
+    # For older Streamlit versions
+    st.warning("Streamlit version is outdated. Update to v1.22.0 or later for full editing support.")
+    edited_data = data
+    st.dataframe(data)
 
 # Step 3: Process the Edited Data for Sankey Diagram
+# Handle missing values
 edited_data['Credit'] = edited_data['Credit'].fillna(0)
 edited_data['Debit'] = edited_data['Debit'].fillna(0)
 edited_data['Transaction Value'] = edited_data['Credit'] + edited_data['Debit']
 
-# Normalize transaction values to reduce line thickness
-edited_data['Transaction Value (Normalized)'] = edited_data['Transaction Value'] / 1000  # Scale down by dividing by 1000
+# Normalize transaction values for line thickness
+edited_data['Transaction Value (Normalized)'] = edited_data['Transaction Value'] / 1000  # Scale down values
 
 # Step 4: Validate Columns
 required_columns = ['Region', 'Subregion', 'Area', 'Branch', 'Account Type', 'Transaction To', 'Transaction Value (Normalized)']
