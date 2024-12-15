@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # Streamlit App Title
-st.title("Real-Time Alluvial Chart for Bank Transactions")
+st.title("Enhanced Real-Time Alluvial Chart for Bank Transactions")
 
 # Step 1: Dummy Data for Default Use
 def get_dummy_data():
@@ -14,8 +14,8 @@ def get_dummy_data():
         'Branch': ['Branch A1', 'Branch A2', 'Branch B1', 'Branch B2'],
         'Account Type': ['Savings', 'Current', 'Business', 'Savings'],
         'Transaction To': ['Bank X', 'Bank Y', 'Bank Z', 'Bank X'],
-        'Credit': [100000, 150000, 200000, 250000],
-        'Debit': [50000, 70000, 120000, 90000]
+        'Credit': [100000, 0, 0, 250000],
+        'Debit': [0, 150000, 200000, 0]
     })
 
 # Step 2: File Upload for User Data
@@ -51,42 +51,54 @@ nodes = pd.concat([
     data['Transaction To']
 ]).unique()
 
-# Map nodes to indices
+# Map nodes to indices for the Sankey diagram
 node_indices = {node: i for i, node in enumerate(nodes)}
 
 # Create Sankey links
-links = {'source': [], 'target': [], 'value': []}
+links = {'source': [], 'target': [], 'value': [], 'color': []}
+colors = {
+    'Bank X': 'blue',
+    'Bank Y': 'red',
+    'Bank Z': 'green',
+    'Region A': 'purple',
+    'Region B': 'orange'
+}
 
 for _, row in data.iterrows():
     # Region -> Subregion
     links['source'].append(node_indices[row['Region']])
     links['target'].append(node_indices[row['Subregion']])
     links['value'].append(row['Transaction Value'])
+    links['color'].append(colors.get(row['Region'], 'gray'))  # Default color is gray
 
     # Subregion -> Area
     links['source'].append(node_indices[row['Subregion']])
     links['target'].append(node_indices[row['Area']])
     links['value'].append(row['Transaction Value'])
+    links['color'].append(colors.get(row['Region'], 'gray'))
 
     # Area -> Branch
     links['source'].append(node_indices[row['Area']])
     links['target'].append(node_indices[row['Branch']])
     links['value'].append(row['Transaction Value'])
+    links['color'].append(colors.get(row['Region'], 'gray'))
 
     # Branch -> Account Type
     links['source'].append(node_indices[row['Branch']])
     links['target'].append(node_indices[row['Account Type']])
     links['value'].append(row['Transaction Value'])
+    links['color'].append(colors.get(row['Region'], 'gray'))
 
     # Account Type -> Transaction Destination
     links['source'].append(node_indices[row['Account Type']])
     links['target'].append(node_indices[row['Transaction To']])
     links['value'].append(row['Transaction Value'])
+    links['color'].append(colors.get(row['Transaction To'], 'gray'))
 
 # Step 4: Create Sankey Diagram
 fig = go.Figure(go.Sankey(
     node=dict(
-        pad=15,
+        pad=30,  # Increased padding for better spacing
         thickness=20,
         line=dict(color="black", width=0.5),
         label=list(nodes),
@@ -95,9 +107,10 @@ fig = go.Figure(go.Sankey(
         source=links['source'],
         target=links['target'],
         value=links['value'],
+        color=links['color'],  # Assign colors to links
     )
 ))
 
 # Step 5: Display the Chart in Streamlit
-st.subheader("Alluvial Chart (Sankey Diagram)")
+st.subheader("Enhanced Alluvial Chart (Sankey Diagram)")
 st.plotly_chart(fig, use_container_width=True)
