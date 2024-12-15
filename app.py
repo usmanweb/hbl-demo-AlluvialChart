@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # Streamlit App Title
-st.title("Dynamic Alluvial Chart (Sankey Diagram)")
+st.title("Improved Dynamic Alluvial Chart (Sankey Diagram)")
 
 # Step 1: Define Editable Dummy Data
 def get_dummy_data():
@@ -31,6 +31,11 @@ else:
     edited_data['Credit'] = edited_data['Credit'].fillna(0)
     edited_data['Debit'] = edited_data['Debit'].fillna(0)
     edited_data['Transaction Value'] = edited_data['Credit'] + edited_data['Debit']
+
+    # Normalize transaction values for better visibility
+    edited_data['Transaction Value (Normalized)'] = (
+        edited_data['Transaction Value'] / edited_data['Transaction Value'].max() * 100
+    )
 
     # Create nodes and links for the Sankey diagram
     nodes = pd.concat([
@@ -61,7 +66,7 @@ else:
             node_indices[row['Account Type']],
             node_indices[row['Transaction To']]
         ])
-        links['value'].extend([row['Transaction Value']] * 5)
+        links['value'].extend([row['Transaction Value (Normalized)']] * 5)
         links['color'].extend([colors.get(row['Transaction To'], 'gray')] * 5)
 
     # Validate data integrity for Sankey diagram
@@ -69,8 +74,8 @@ else:
         # Step 5: Create Sankey Diagram
         fig = go.Figure(go.Sankey(
             node=dict(
-                pad=30,
-                thickness=20,
+                pad=50,  # Increased padding for more space between nodes
+                thickness=10,  # Reduced node thickness
                 line=dict(color="black", width=0.5),
                 label=list(nodes),
             ),
@@ -83,7 +88,7 @@ else:
         ))
 
         # Step 6: Display the Chart
-        st.subheader("Generated Alluvial Chart (Sankey Diagram)")
+        st.subheader("Improved Alluvial Chart (Sankey Diagram)")
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("Mismatch in source, target, and value lengths. Check your data.")
