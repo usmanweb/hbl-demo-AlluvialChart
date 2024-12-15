@@ -3,77 +3,78 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # Streamlit App Title
-st.title("Enhanced Dynamic Alluvial Chart (Sankey Diagram)")
+st.title("Alluvial Chart (Sankey Diagram) - Bank Transactions")
 
-# Step 1: Define Expanded Dummy Data
-def get_dummy_data():
-    return pd.DataFrame({
-        'Region': ['Region A', 'Region A', 'Region B', 'Region B', 'Region C', 'Region C'],
-        'Subregion': ['Subregion A1', 'Subregion A2', 'Subregion B1', 'Subregion B2', 'Subregion C1', 'Subregion C2'],
-        'Area': ['Area A1', 'Area A2', 'Area B1', 'Area B2', 'Area C1', 'Area C2'],
-        'Branch': ['Branch A1', 'Branch A2', 'Branch B1', 'Branch B2', 'Branch C1', 'Branch C2'],
-        'Account Type': ['Savings', 'Current', 'Business', 'Savings', 'Current', 'Business'],
-        'Transaction To': ['Bank X', 'Bank Y', 'Bank Z', 'Bank X', 'Bank Y', 'Bank Z'],
-        'Credit': [120000, 180000, 80000, 250000, 140000, 200000],
-        'Debit': [0, 0, 150000, 0, 0, 100000]
-    })
+# Step 1: Upload Data
+st.subheader("Upload Your Dataset")
+uploaded_file = st.file_uploader("Upload a CSV or Excel file with your transaction data", type=["csv", "xlsx"])
 
-# Step 2: Editable Data
-st.subheader("Edit the Data")
-data = get_dummy_data()
-edited_data = st.data_editor(data, use_container_width=True, num_rows="dynamic")
+if uploaded_file is not None:
+    # Load uploaded data
+    if uploaded_file.name.endswith(".csv"):
+        data = pd.read_csv(uploaded_file)
+    else:
+        data = pd.read_excel(uploaded_file)
 
-# Step 3: Validate Edited Data
-if edited_data.empty:
-    st.error("No data available. Please add rows to the table.")
-else:
-    # Step 4: Process the Data
-    edited_data['Credit'] = edited_data['Credit'].fillna(0)
-    edited_data['Debit'] = edited_data['Debit'].fillna(0)
-    edited_data['Transaction Value'] = edited_data['Credit'] + edited_data['Debit']
+    # Step 2: Fill Missing Values
+    st.subheader("Preview of Uploaded Data")
+    st.write("Make sure your dataset has the following columns: Region, Subregion, Area, Branch, Account Type, Transaction To, Credit, Debit")
+    st.dataframe(data)
 
-    # Normalize transaction values for better visualization
-    edited_data['Transaction Value (Normalized)'] = (
-        edited_data['Transaction Value'] / edited_data['Transaction Value'].max() * 100
-    )
+    # Fill missing Credit and Debit values with 0
+    data['Credit'] = data['Credit'].fillna(0)
+    data['Debit'] = data['Debit'].fillna(0)
 
-    # Create nodes and links for the Sankey diagram
+    # Calculate total transaction value
+    data['Transaction Value'] = data['Credit'] + data['Debit']
+
+    # Step 3: Create Unique List of Nodes
     nodes = pd.concat([
-        edited_data['Region'],
-        edited_data['Subregion'],
-        edited_data['Area'],
-        edited_data['Branch'],
-        edited_data['Account Type'],
-        edited_data['Transaction To']
+        data['Region'],
+        data['Subregion'],
+        data['Area'],
+        data['Branch'],
+        data['Account Type'],
+        data['Transaction To']
     ]).unique()
 
+    # Map nodes to indices for the Sankey diagram
     node_indices = {node: i for i, node in enumerate(nodes)}
-    links = {'source': [], 'target': [], 'value': [], 'label': []}
-    colors = {'Bank X': 'blue', 'Bank Y': 'red', 'Bank Z': 'green'}
 
-    for _, row in edited_data.iterrows():
-        links['source'].extend([
-            node_indices[row['Region']],
-            node_indices[row['Subregion']],
-            node_indices[row['Area']],
-            node_indices[row['Branch']],
-            node_indices[row['Account Type']]
-        ])
-        links['target'].extend([
-            node_indices[row['Subregion']],
-            node_indices[row['Area']],
-            node_indices[row['Branch']],
-            node_indices[row['Account Type']],
-            node_indices[row['Transaction To']]
-        ])
-        links['value'].extend([row['Transaction Value (Normalized)']] * 5)
-        links['label'].extend([f"{row['Transaction Value']}"] * 5)
+    # Step 4: Create Sankey Links
+    links = {'source': [], 'target': [], 'value': []}
+
+    for _, row in data.iterrows():
+        # Region -> Subregion
+        links['source'].append(node_indices[row['Region']])
+        links['target'].append(node_indices[row['Subregion']])
+        links['value'].append(row['Transaction Value'])
+
+        # Subregion -> Area
+        links['source'].append(node_indices[row['Subregion']])
+        links['target'].append(node_indices[row['Area']])
+        links['value'].append(row['Transaction Value'])
+
+        # Area -> Branch
+        links['source'].append(node_indices[row['Area']])
+        links['target'].append(node_indices[row['Branch']])
+        links['value'].append(row['Transaction Value'])
+
+        # Branch -> Account Type
+        links['source'].append(node_indices[row['Branch']])
+        links['target'].append(node_indices[row['Account Type']])
+        links['value'].append(row['Transaction Value'])
+
+        # Account Type -> Transaction Destination
+        links['source'].append(node_indices[row['Account Type']])
+        links['target'].append(node_indices[row['Transaction To']])
+        links['value'].append(row['Transaction Value'])
 
     # Step 5: Create Sankey Diagram
     fig = go.Figure(go.Sankey(
         node=dict(
-            pad=50,  # Increased padding for more space between nodes
-            thickness=10,  # Reduced node thickness
+            pad=15,
+            thickness=20,
             line=dict(color="black", width=0.5),
             label=list(nodes),
         ),
@@ -81,12 +82,12 @@ else:
             source=links['source'],
             target=links['target'],
             value=links['value'],
-            color=[colors.get(row, 'gray') for row in edited_data['Transaction To']],
-            hoverinfo='text',
-            text=links['label'],  # Add labels for transaction values
         )
     ))
 
-    # Step 6: Display the Chart
-    st.subheader("Enhanced Alluvial Chart (Sankey Diagram)")
+    # Step 6: Add Title and Display Chart
+    fig.update_layout(title_text="Alluvial Chart (Sankey Diagram) - Bank Transactions", font_size=10)
     st.plotly_chart(fig, use_container_width=True)
+
+else:
+    st.info("Please upload a CSV or Excel file to generate the Sankey diagram.")
