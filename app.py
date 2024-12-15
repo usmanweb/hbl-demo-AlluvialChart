@@ -3,9 +3,9 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # Streamlit App Title
-st.title("Real-Time Editable Alluvial Chart (Sankey Diagram)")
+st.title("Dynamic Alluvial Chart (Sankey Diagram)")
 
-# Step 1: Define Dummy Data
+# Step 1: Define Editable Dummy Data
 def get_dummy_data():
     return pd.DataFrame({
         'Region': ['Region A', 'Region A', 'Region B', 'Region B'],
@@ -18,37 +18,21 @@ def get_dummy_data():
         'Debit': [0, 0, 200000, 0]
     })
 
-# Step 2: Allow Users to Edit Dummy Data
-st.subheader("Editable Data")
+# Step 2: Editable Data
+st.subheader("Edit the Data")
 data = get_dummy_data()
+edited_data = st.data_editor(data, use_container_width=True, num_rows="dynamic")
 
-# Check Streamlit version and use appropriate function
-try:
-    # For Streamlit v1.22.0 or later
-    edited_data = st.data_editor(data, use_container_width=True, num_rows="dynamic")
-except AttributeError:
-    # For older Streamlit versions
-    st.warning("Streamlit version is outdated. Update to v1.22.0 or later for full editing support.")
-    edited_data = data
-    st.dataframe(data)
-
-# Step 3: Process the Edited Data for Sankey Diagram
-# Handle missing values
-edited_data['Credit'] = edited_data['Credit'].fillna(0)
-edited_data['Debit'] = edited_data['Debit'].fillna(0)
-edited_data['Transaction Value'] = edited_data['Credit'] + edited_data['Debit']
-
-# Normalize transaction values for line thickness
-edited_data['Transaction Value (Normalized)'] = edited_data['Transaction Value'] / 1000  # Scale down values
-
-# Step 4: Validate Columns
-required_columns = ['Region', 'Subregion', 'Area', 'Branch', 'Account Type', 'Transaction To', 'Transaction Value (Normalized)']
-missing_columns = [col for col in required_columns if col not in edited_data.columns]
-
-if missing_columns:
-    st.error(f"Missing required columns: {', '.join(missing_columns)}")
+# Step 3: Validate Edited Data
+if edited_data.empty:
+    st.error("No data available. Please add rows to the table.")
 else:
-    # Create unique nodes
+    # Step 4: Process the Data
+    edited_data['Credit'] = edited_data['Credit'].fillna(0)
+    edited_data['Debit'] = edited_data['Debit'].fillna(0)
+    edited_data['Transaction Value'] = edited_data['Credit'] + edited_data['Debit']
+
+    # Create nodes and links for the Sankey diagram
     nodes = pd.concat([
         edited_data['Region'],
         edited_data['Subregion'],
@@ -58,67 +42,48 @@ else:
         edited_data['Transaction To']
     ]).unique()
 
-    # Map nodes to indices for the Sankey diagram
     node_indices = {node: i for i, node in enumerate(nodes)}
-
-    # Create Sankey links
     links = {'source': [], 'target': [], 'value': [], 'color': []}
-    colors = {
-        'Bank X': 'blue',
-        'Bank Y': 'red',
-        'Bank Z': 'green',
-        'Region A': 'purple',
-        'Region B': 'orange'
-    }
+    colors = {'Bank X': 'blue', 'Bank Y': 'red', 'Bank Z': 'green'}
 
     for _, row in edited_data.iterrows():
-        # Region -> Subregion
-        links['source'].append(node_indices[row['Region']])
-        links['target'].append(node_indices[row['Subregion']])
-        links['value'].append(row['Transaction Value (Normalized)'])
-        links['color'].append(colors.get(row['Transaction To'], 'gray'))
+        links['source'].extend([
+            node_indices[row['Region']],
+            node_indices[row['Subregion']],
+            node_indices[row['Area']],
+            node_indices[row['Branch']],
+            node_indices[row['Account Type']]
+        ])
+        links['target'].extend([
+            node_indices[row['Subregion']],
+            node_indices[row['Area']],
+            node_indices[row['Branch']],
+            node_indices[row['Account Type']],
+            node_indices[row['Transaction To']]
+        ])
+        links['value'].extend([row['Transaction Value']] * 5)
+        links['color'].extend([colors.get(row['Transaction To'], 'gray')] * 5)
 
-        # Subregion -> Area
-        links['source'].append(node_indices[row['Subregion']])
-        links['target'].append(node_indices[row['Area']])
-        links['value'].append(row['Transaction Value (Normalized)'])
-        links['color'].append(colors.get(row['Transaction To'], 'gray'))
+    # Validate data integrity for Sankey diagram
+    if len(links['source']) == len(links['target']) == len(links['value']):
+        # Step 5: Create Sankey Diagram
+        fig = go.Figure(go.Sankey(
+            node=dict(
+                pad=30,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=list(nodes),
+            ),
+            link=dict(
+                source=links['source'],
+                target=links['target'],
+                value=links['value'],
+                color=links['color'],
+            )
+        ))
 
-        # Area -> Branch
-        links['source'].append(node_indices[row['Area']])
-        links['target'].append(node_indices[row['Branch']])
-        links['value'].append(row['Transaction Value (Normalized)'])
-        links['color'].append(colors.get(row['Transaction To'], 'gray'))
-
-        # Branch -> Account Type
-        links['source'].append(node_indices[row['Branch']])
-        links['target'].append(node_indices[row['Account Type']])
-        links['value'].append(row['Transaction Value (Normalized)'])
-        links['color'].append(colors.get(row['Transaction To'], 'gray'))
-
-        # Account Type -> Transaction Destination
-        links['source'].append(node_indices[row['Account Type']])
-        links['target'].append(node_indices[row['Transaction To']])
-        links['value'].append(row['Transaction Value (Normalized)'])
-        links['color'].append(colors.get(row['Transaction To'], 'gray'))
-
-    # Step 5: Create Sankey Diagram
-    fig = go.Figure(go.Sankey(
-        node=dict(
-            pad=30,  # Increased padding for better spacing
-            thickness=20,
-            line=dict(color="black", width=0.5),
-            label=list(nodes),
-        ),
-        link=dict(
-            source=links['source'],
-            target=links['target'],
-            value=links['value'],
-            color=links['color'],  # Assign colors to links
-            opacity=0.6  # Reduced opacity for better visibility
-        )
-    ))
-
-    # Step 6: Display the Chart in Streamlit
-    st.subheader("Alluvial Chart (Sankey Diagram) with Reduced Line Thickness")
-    st.plotly_chart(fig, use_container_width=True)
+        # Step 6: Display the Chart
+        st.subheader("Generated Alluvial Chart (Sankey Diagram)")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("Mismatch in source, target, and value lengths. Check your data.")
